@@ -17,8 +17,19 @@ export async function runExhaustionScan(opts = {}) {
   const entryTf = resolveEntryTf(tf, entryTfSetting);
   console.log(`[EX] TF:${tf} EntryTF:${entryTf || 'OFF'} Top${coins} MinScore:${minScore}`);
 
-  const tickers = (await binance.getTickers(coins))
-    .filter(t => isInActiveCategory(t.symbol, catState));
+  let rawTickers;
+  try {
+    rawTickers = await binance.getTickers(coins);
+  } catch (e) {
+    console.error('[EX] Failed to fetch tickers:', e.message);
+    return [];
+  }
+  if (!rawTickers || !rawTickers.length) {
+    console.error('[EX] No tickers returned from Binance');
+    return [];
+  }
+  const tickers = rawTickers.filter(t => isInActiveCategory(t.symbol, catState));
+  console.log(`[EX] ${tickers.length} symbols to scan`);
 
   const found = [];
 
@@ -56,8 +67,8 @@ export async function runExhaustionScan(opts = {}) {
         if (eb) incData = calcInception(td, bars, eb, rsiOB);
       }
 
-      const sym    = tk.symbol.replace('USDT', '');
-      const curBar = bars[bars.length - 1];
+      const sym     = tk.symbol.replace('USDT', '');
+      const curBar  = bars[bars.length - 1];
       const mainPat = bestPattern(patterns, sigDir) || patterns[0];
 
       found.push({
@@ -81,17 +92,17 @@ export async function runExhaustionScan(opts = {}) {
           && ((sigDir === 'sell' && fundingRate > 0.03)
            || (sigDir === 'buy'  && fundingRate < -0.03)),
         isLowFloat: false, fdv: null, floatPct: null,
-        entryScore: entryData?.entryScore || 0,
-        entryRsi: entryData?.entryRsi || null,
-        entryTdCount: entryData?.entryTdCount || 0,
-        entryReady: entryData?.entryReady || false,
-        inceptionScore: incData?.inceptionScore || 0,
-        inceptionReady: incData?.inceptionReady || false,
-        primaryBias: incData?.primaryBias || null,
-        primaryCD: td.countdown,
-        entryTdCD: incData?.entryTdCD || 0,
-        iReasons: incData?.iReasons || [],
-        isInception: incData?.inceptionReady || false,
+        entryScore:    entryData?.entryScore    || 0,
+        entryRsi:      entryData?.entryRsi      || null,
+        entryTdCount:  entryData?.entryTdCount  || 0,
+        entryReady:    entryData?.entryReady    || false,
+        inceptionScore:  incData?.inceptionScore  || 0,
+        inceptionReady:  incData?.inceptionReady  || false,
+        primaryBias:     incData?.primaryBias     || null,
+        primaryCD:       td.countdown,
+        entryTdCD:       incData?.entryTdCD       || 0,
+        iReasons:        incData?.iReasons        || [],
+        isInception:     incData?.inceptionReady  || false,
       });
 
       console.log(`[EX] ✓ ${tk.symbol} Score:${score} Dir:${sigDir} TD:${td.count}${td.countdown > 0 ? ' CD:' + td.countdown : ''}`);
@@ -112,14 +123,25 @@ export async function runTrendScan(opts = {}) {
     minScore = 40, rsiOS = 40, maPeriods = [50, 100, 200], catState = null,
   } = opts;
 
-  const entryTf  = resolveEntryTf(tf, entryTfSetting) || '1h';
-  const maLimit  = Math.max(...maPeriods) + 20;
+  const entryTf       = resolveEntryTf(tf, entryTfSetting) || '1h';
+  const maLimit       = Math.max(...maPeriods) + 20;
   const entryBarLimit = { '1d': 150, '4h': 120, '1h': 100, '15m': 100 }[entryTf] || 100;
 
   console.log(`[TR] TF:${tf} EntryTF:${entryTf} MAs:${maPeriods.join('/')} Top${coins}`);
 
-  const tickers = (await binance.getTickers(coins))
-    .filter(t => isInActiveCategory(t.symbol, catState));
+  let rawTickers;
+  try {
+    rawTickers = await binance.getTickers(coins);
+  } catch (e) {
+    console.error('[TR] Failed to fetch tickers:', e.message);
+    return [];
+  }
+  if (!rawTickers || !rawTickers.length) {
+    console.error('[TR] No tickers returned from Binance');
+    return [];
+  }
+  const tickers = rawTickers.filter(t => isInActiveCategory(t.symbol, catState));
+  console.log(`[TR] ${tickers.length} symbols to scan`);
 
   const found = [];
 
@@ -136,7 +158,7 @@ export async function runTrendScan(opts = {}) {
       if (!maInfo || !maInfo.aligned) continue;
       if (maInfo.depth === 'none' || maInfo.depth === 'deep') continue;
 
-      const eTD  = entryBars ? calcTD(entryBars) : { count: 0, dir: null, countdown: 0 };
+      const eTD  = entryBars ? calcTD(entryBars)  : { count: 0, dir: null, countdown: 0 };
       const eRSI = entryBars ? calcRSI(entryBars) : null;
 
       const [funding, oiData] = await Promise.all([
@@ -164,15 +186,21 @@ export async function runTrendScan(opts = {}) {
         price: tk.price, change: tk.change,
         dir: maInfo.bull ? 'BULL' : 'BEAR',
         tf, entryTf, score, reasons, maInfo, maPeriods,
-        pullbackPct: maInfo.pbPct, pullbackDepth: maInfo.depth,
-        entryTdCount: eTD.count, entryTdDir: eTD.dir, entryTdCD: eTD.countdown,
-        entryRsi: eRSI, rsiSlope: entryBars ? calcRSISlope(entryBars) : null,
-        entryPat, fundingRate,
-        oiUsdt: oiData?.oiUsdt || null, oiChange: oiData?.oiChange || null,
+        pullbackPct:   maInfo.pbPct,
+        pullbackDepth: maInfo.depth,
+        entryTdCount:  eTD.count,
+        entryTdDir:    eTD.dir,
+        entryTdCD:     eTD.countdown,
+        entryRsi:      eRSI,
+        rsiSlope:      entryBars ? calcRSISlope(entryBars) : null,
+        entryPat,      fundingRate,
+        oiUsdt:        oiData?.oiUsdt  || null,
+        oiChange:      oiData?.oiChange || null,
         fdv: null, floatPct: null,
         fundingAligned: fundingRate != null
           && ((maInfo.bull && fundingRate < -0.01) || (!maInfo.bull && fundingRate > 0.01)),
-        isPerfectStack: maInfo.aligned, isDeepPullback: maInfo.depth === 'medium',
+        isPerfectStack:  maInfo.aligned,
+        isDeepPullback:  maInfo.depth === 'medium',
         o: cur.o, h: cur.h, l: cur.l, c: cur.c,
       });
 
