@@ -23,12 +23,14 @@ export const DEFAULT_CAT_STATE = {
   MEGA: true, LAYER1: true, LAYER2: true, DEFI: true, AI: true, MEME: true,
 };
 
-export function isInActiveCategory(sym, catState = DEFAULT_CAT_STATE) {
-  const inactive = Object.entries(catState).filter(([, v]) => !v).map(([k]) => k);
+export function isInActiveCategory(sym, catState) {
+  // If catState is null/undefined, include everything
+  const state = catState || DEFAULT_CAT_STATE;
+  const inactive = Object.entries(state).filter(([, v]) => !v).map(([k]) => k);
   if (!inactive.length) return true;
   const allCatSyms = Object.values(CATS).flat();
   if (!allCatSyms.includes(sym)) return true;
-  const active = Object.entries(catState).filter(([, v]) => v).map(([k]) => k);
+  const active = Object.entries(state).filter(([, v]) => v).map(([k]) => k);
   return active.some(cat => CATS[cat]?.includes(sym));
 }
 
