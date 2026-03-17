@@ -1,0 +1,17 @@
+{
+  "name": "hkbr-crypto-scanner-bot",
+  "version": "1.0.0",
+  "description": "HKBR Crypto Scanner Bot",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
