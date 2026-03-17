@@ -1,4 +1,3 @@
-
 // src/index.js
 import 'dotenv/config';
 import { runExhaustionScan, runTrendScan } from './scanner.js';
@@ -27,7 +26,6 @@ const CONFIG = {
   ALERT_MIN_SCORE:   parseInt(process.env.ALERT_MIN_SCORE || '60'),
 };
 
-const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : Number(n).toFixed(d);
 let scanCount = 0;
 
 async function runCycle() {
@@ -44,7 +42,7 @@ async function runCycle() {
   let exResults = [];
   let trResults = [];
 
-  // ── EXHAUSTION SCAN ────────────────────────────────────────────
+  // ── EXHAUSTION SCAN ──────────────────────────────────────────
   if (CONFIG.SCAN_MODE === 'both' || CONFIG.SCAN_MODE === 'exhaustion') {
     console.log(`\n◈ EXHAUSTION SCAN (TF:${CONFIG.EX_TF})`);
     updateDashboard({ status: `Running exhaustion scan...` });
@@ -57,26 +55,23 @@ async function runCycle() {
         rsiOB:          CONFIG.EX_RSI_OB,
         distPct:        CONFIG.EX_DIST_PCT,
       });
-
       const shorts    = exResults.filter(r => r.dir === 'SHORT').length;
       const longs     = exResults.filter(r => r.dir === 'LONG').length;
       const inception = exResults.filter(r => r.isInception).length;
       console.log(`  Found ${exResults.length} setups (${shorts} SHORT · ${longs} LONG · ${inception} INCEPTION)`);
-
-      // Telegram alerts for top setups
       const topSetups = exResults.filter(r => r.score >= CONFIG.ALERT_MIN_SCORE);
       for (const setup of topSetups) {
         await sendSetupAlert(setup, 'exhaustion');
       }
       await sendScanSummary('EXHAUSTION', exResults, CONFIG.ALERT_MIN_SCORE);
-
     } catch (e) {
       console.error('  [EX] Scan failed:', e.message);
+      console.error('  [EX] Stack:', e.stack);
       await sendTelegram(`⚠️ Exhaustion scan error: ${e.message}`);
     }
   }
 
-  // ── TREND SCAN ─────────────────────────────────────────────────
+  // ── TREND SCAN ───────────────────────────────────────────────
   if (CONFIG.SCAN_MODE === 'both' || CONFIG.SCAN_MODE === 'trend') {
     console.log(`\n◈ TREND ENTRY SCAN (TF:${CONFIG.TR_TF})`);
     updateDashboard({ status: `Running trend scan...` });
@@ -89,24 +84,22 @@ async function runCycle() {
         rsiOS:          CONFIG.TR_RSI_OS,
         maPeriods:      CONFIG.TR_MA_PERIODS,
       });
-
       const bulls = trResults.filter(r => r.dir === 'BULL').length;
       const bears = trResults.filter(r => r.dir === 'BEAR').length;
       console.log(`  Found ${trResults.length} entries (${bulls} BULL · ${bears} BEAR)`);
-
       const topSetups = trResults.filter(r => r.score >= CONFIG.ALERT_MIN_SCORE);
       for (const setup of topSetups) {
         await sendSetupAlert(setup, 'trend');
       }
       await sendScanSummary('TREND', trResults, CONFIG.ALERT_MIN_SCORE);
-
     } catch (e) {
       console.error('  [TR] Scan failed:', e.message);
+      console.error('  [TR] Stack:', e.stack);
       await sendTelegram(`⚠️ Trend scan error: ${e.message}`);
     }
   }
 
-  // ── UPDATE DASHBOARD ───────────────────────────────────────────
+  // ── UPDATE DASHBOARD ─────────────────────────────────────────
   updateDashboard({
     exhaustion: exResults,
     trend:      trResults,
@@ -122,11 +115,8 @@ async function runCycle() {
 
 async function main() {
   console.log('HKBR Crypto Scanner Bot starting...');
-
-  // Start dashboard server first so Railway health checks pass immediately
   startDashboard(PORT);
 
-  // Verify Binance connectivity
   try {
     const ok = await ping();
     if (!ok) throw new Error('Ping failed');
@@ -135,10 +125,7 @@ async function main() {
     console.error('✗ Cannot reach Binance:', e.message);
   }
 
-  // Notify Telegram on startup
-  await sendTelegram(`🚀 <b>HKBR Scanner Bot started!</b>\nRunning first scan now...\nDashboard is live on Railway.`);
-
-  // Run immediately then on interval
+  await sendTelegram(`🚀 <b>HKBR Scanner Bot started!</b>\nRunning first scan now...`);
   await runCycle();
 
   setInterval(async () => {
@@ -148,6 +135,6 @@ async function main() {
 }
 
 main().catch(e => {
-  console.error('Fatal error:', e);
+  console.error('Fatal error:', e.stack);
   process.exit(1);
 });
